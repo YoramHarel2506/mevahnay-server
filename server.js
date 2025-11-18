@@ -6,19 +6,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// בדיקת שרת
 app.get("/", (req, res) => {
   res.send({ status: "server running", name: "Mevahnay API" });
 });
 
-// יצירת מסמך DOCX ממבחן
 app.post("/generate-docx", async (req, res) => {
   try {
     const exam = req.body;
 
     const paragraphs = [];
 
-    // כותרת
     paragraphs.push(
       new Paragraph({
         children: [
@@ -28,7 +25,6 @@ app.post("/generate-docx", async (req, res) => {
       })
     );
 
-    // הוראות
     if (exam.instructions) {
       paragraphs.push(
         new Paragraph({
@@ -38,7 +34,6 @@ app.post("/generate-docx", async (req, res) => {
       );
     }
 
-    // שאלות
     exam.questions.forEach((q, index) => {
       paragraphs.push(
         new Paragraph({
@@ -52,10 +47,8 @@ app.post("/generate-docx", async (req, res) => {
       sections: [{ children: paragraphs }],
     });
 
-    // יצירת buffer במקום שמירה לקובץ
     const buffer = await Packer.toBuffer(doc);
 
-    // החזרת המסמך ישירות להורדה
     res.setHeader("Content-Disposition", "attachment; filename=exam.docx");
     res.setHeader(
       "Content-Type",
