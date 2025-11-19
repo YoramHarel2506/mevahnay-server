@@ -1,67 +1,53 @@
 import express from "express";
 import cors from "cors";
-import { Document, Packer, Paragraph, TextRun } from "docx";
+
+// מחולל המסמך שלנו
+import { renderExamToDocx } from "./wordRenderer.js";
+
+// שלב 1: שינוי settings/styles/numbering למסמך RTL
+import { applyRtlSettings } from "./applyRtlSettings.js";
+
+// שלב 2: כפיית RTL על כל הפסקאות ב-document.xml
+import { applyRtlParagraphs } from "./applyRtlParagraphs.js";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send({ status: "server running", name: "Mevahnay API" });
-});
-
 app.post("/generate-docx", async (req, res) => {
   try {
-    const exam = req.body;
+    const examJson = req.body;
 
-    const paragraphs = [];
+    console.log("→ Starting DOCX generation request…");
 
-    paragraphs.push(
-      new Paragraph({
-        children: [
-          new TextRun({ text: exam.title || "Exam", bold: true, size: 40 })
-        ],
-        spacing: { after: 300 },
-      })
-    );
+    // 1) יצירת DOCX רגיל (מ־docx)
+    const baseDoc = await renderExamToDocx(examJson);
+    console.log("✔ Base DOCX generated");
 
-    if (exam.instructions) {
-      paragraphs.push(
-        new Paragraph({
-          children: [new TextRun({ text: exam.instructions, italics: true })],
-          spacing: { after: 200 },
-        })
-      );
-    }
+    // 2) RTL-level במסמך (settings/styles/numbering)
+    const rtlDoc1 = await applyRtlSettings(baseDoc);
+    console.log("✔ applyRtlSettings done");
 
-    exam.questions.forEach((q, index) => {
-      paragraphs.push(
-        new Paragraph({
-          text: `${index + 1}. ${q.q}`,
-          spacing: { after: 100 },
-        })
-      );
-    });
+    // 3) כפיית RTL על כל הפסקאות ב-document.xml
+    const rtlDoc2 = await applyRtlParagraphs(rtlDoc1);
+    console.log("✔ applyRtlParagraphs done");
 
-    const doc = new Document({
-      sections: [{ children: paragraphs }],
-    });
-
-    const buffer = await Packer.toBuffer(doc);
-
-    res.setHeader("Content-Disposition", "attachment; filename=exam.docx");
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="exam_${Date.now()}.docx"`
+    );
 
-    return res.send(buffer);
-
-  } catch (error) {
-    console.error(error);
-    return res.status(500).send({ success: false, message: "Failed to generate DOCX" });
+    return res.send(rtlDoc2);
+  } catch (err) {
+    console.error("❌ DOCX generation failed:", err);
+    return res.status(500).send({ error: "DOCX creation failed" });
   }
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log("Server running on port", port));
+app.listen(3000, () =>
+  console.log("🚀 WORD RTL SERVER RUNNING ON PORT 3000")
+);
