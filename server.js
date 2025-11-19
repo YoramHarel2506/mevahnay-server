@@ -17,20 +17,24 @@ app.use(express.json());
 app.post("/generate-docx", async (req, res) => {
   try {
     const examJson = req.body;
+    const rtl = examJson.direction !== "ltr"; // ברירת מחדל: RTL אם לא כתוב ltr
 
     console.log("→ Starting DOCX generation request…");
 
-    // 1) יצירת DOCX רגיל (מ־docx)
-    const baseDoc = await renderExamToDocx(examJson);
+    // 1) יצירת DOCX רגיל
+    let docBuffer = await renderExamToDocx(examJson);
     console.log("✔ Base DOCX generated");
 
-    // 2) RTL-level במסמך (settings/styles/numbering)
-    const rtlDoc1 = await applyRtlSettings(baseDoc);
-    console.log("✔ applyRtlSettings done");
+    // 2) אם זה מבחן RTL – מפעילים את תיקוני ה-XML
+    if (rtl) {
+      docBuffer = await applyRtlSettings(docBuffer);
+      console.log("✔ applyRtlSettings done");
 
-    // 3) כפיית RTL על כל הפסקאות ב-document.xml
-    const rtlDoc2 = await applyRtlParagraphs(rtlDoc1);
-    console.log("✔ applyRtlParagraphs done");
+      docBuffer = await applyRtlParagraphs(docBuffer);
+      console.log("✔ applyRtlParagraphs done");
+    } else {
+      console.log("ℹ direction=ltr → skipping RTL post-processing");
+    }
 
     res.setHeader(
       "Content-Type",
@@ -41,12 +45,13 @@ app.post("/generate-docx", async (req, res) => {
       `attachment; filename="exam_${Date.now()}.docx"`
     );
 
-    return res.send(rtlDoc2);
+    return res.send(docBuffer);
   } catch (err) {
     console.error("❌ DOCX generation failed:", err);
     return res.status(500).send({ error: "DOCX creation failed" });
   }
 });
+
 
 app.listen(3000, () =>
   console.log("🚀 WORD RTL SERVER RUNNING ON PORT 3000")
