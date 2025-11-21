@@ -30,6 +30,12 @@ export async function applyRtlParagraphs(buffer) {
   const fixedXml = xml.replace(
     /<w:p([^>]*)>([\s\S]*?)<\/w:p>/g,
     (fullMatch, attrs, inner) => {
+       if (
+      fullMatch.includes('<w:pStyle w:val="Header"') ||
+      fullMatch.includes('<w:pStyle w:val="Footer"')
+    ) {
+      return fullMatch; // מחזירים כמו שהוא
+    }
       const hasPPr = /<w:pPr[\s\S]*?<\/w:pPr>/.test(inner);
 
       if (hasPPr) {
